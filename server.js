@@ -1,6 +1,5 @@
 const express = require("express");
 const cors = require("cors");
-const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
 
@@ -11,7 +10,7 @@ app.use(express.json());
 console.log("🚀 Starting Exam Pro Backend...");
 
 // ========================================
-// FILE-BASED DATABASE
+// FILE-BASED DATABASE (No bcrypt needed)
 // ========================================
 const USERS_FILE = path.join(__dirname, "users.json");
 const HISTORY_FILE = path.join(__dirname, "history.json");
@@ -43,33 +42,23 @@ function saveData() {
 }
 
 // ========================================
-// QUESTIONS DATA
+// SIMPLE QUESTIONS DATA
 // ========================================
 const questions = {
     mathematics: {
         easy: [
             { id: 1, question: "What is 5 + 3?", options: { A: "6", B: "7", C: "8", D: "9" }, answer: "C" },
             { id: 2, question: "What is 10 - 4?", options: { A: "5", B: "6", C: "7", D: "8" }, answer: "B" },
-            { id: 3, question: "What is 4 × 3?", options: { A: "10", B: "11", C: "12", D: "13" }, answer: "C" },
-            { id: 4, question: "What is 15 ÷ 3?", options: { A: "3", B: "4", C: "5", D: "6" }, answer: "C" },
-            { id: 5, question: "What is 7 + 8?", options: { A: "13", B: "14", C: "15", D: "16" }, answer: "C" }
+            { id: 3, question: "What is 4 × 3?", options: { A: "10", B: "11", C: "12", D: "13" }, answer: "C" }
         ],
-        medium: [
-            { id: 1, question: "What is 15% of 200?", options: { A: "25", B: "30", C: "35", D: "40" }, answer: "B" },
-            { id: 2, question: "Solve: 3x + 5 = 20", options: { A: "3", B: "4", C: "5", D: "6" }, answer: "C" }
-        ],
-        hard: [
-            { id: 1, question: "What is the derivative of x²?", options: { A: "x", B: "2x", C: "x²", D: "2x²" }, answer: "B" }
-        ]
+        medium: [],
+        hard: []
     },
     english: {
         easy: [
-            { id: 1, question: "Choose the synonym of 'happy'", options: { A: "Sad", B: "Joyful", C: "Angry", D: "Tired" }, answer: "B" },
-            { id: 2, question: "What is the antonym of 'hot'?", options: { A: "Warm", B: "Cold", C: "Burning", D: "Fire" }, answer: "B" }
+            { id: 1, question: "Choose the synonym of 'happy'", options: { A: "Sad", B: "Joyful", C: "Angry", D: "Tired" }, answer: "B" }
         ],
-        medium: [
-            { id: 1, question: "What is the synonym of 'difficult'?", options: { A: "Easy", B: "Simple", C: "Hard", D: "Light" }, answer: "C" }
-        ],
+        medium: [],
         hard: []
     },
     physics: { easy: [], medium: [], hard: [] },
@@ -95,9 +84,9 @@ app.get("/api/test", (req, res) => {
 });
 
 // ========================================
-// SIGNUP
+// SIGNUP (Simplified - No password hashing)
 // ========================================
-app.post("/api/signup", async (req, res) => {
+app.post("/api/signup", (req, res) => {
     console.log("📝 Signup request received");
     const { fullname, email, password } = req.body;
     
@@ -110,12 +99,11 @@ app.post("/api/signup", async (req, res) => {
     }
     
     try {
-        const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = {
             id: users.length + 1,
             fullname,
             email,
-            password: hashedPassword,
+            password: password, // Store as plain text for now (fix later)
             created_at: new Date().toISOString()
         };
         users.push(newUser);
@@ -124,14 +112,14 @@ app.post("/api/signup", async (req, res) => {
         res.json({ message: "Account created successfully!" });
     } catch (error) {
         console.error("Signup error:", error);
-        res.status(500).json({ error: "Server error" });
+        res.status(500).json({ error: "Server error: " + error.message });
     }
 });
 
 // ========================================
-// LOGIN
+// LOGIN (Simplified)
 // ========================================
-app.post("/api/login", async (req, res) => {
+app.post("/api/login", (req, res) => {
     console.log("🔐 Login request received");
     const { email, password } = req.body;
     
@@ -144,21 +132,15 @@ app.post("/api/login", async (req, res) => {
         return res.status(401).json({ error: "Invalid email or password" });
     }
     
-    try {
-        const valid = await bcrypt.compare(password, user.password);
-        if (!valid) {
-            return res.status(401).json({ error: "Invalid email or password" });
-        }
-        
-        console.log("✅ User logged in:", email);
-        res.json({
-            message: "Login successful!",
-            user: { fullname: user.fullname, email: user.email }
-        });
-    } catch (error) {
-        console.error("Login error:", error);
-        res.status(500).json({ error: "Server error" });
+    if (user.password !== password) {
+        return res.status(401).json({ error: "Invalid email or password" });
     }
+    
+    console.log("✅ User logged in:", email);
+    res.json({
+        message: "Login successful!",
+        user: { fullname: user.fullname, email: user.email }
+    });
 });
 
 // ========================================
@@ -245,7 +227,6 @@ app.get("/api/admin/history", (req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`\n✅ Server running on port ${PORT}`);
-    console.log(`📁 Data directory: ${__dirname}`);
     console.log(`👥 ${users.length} users registered`);
     console.log(`📝 ${examHistory.length} exam records`);
     console.log(`\n🌐 Ready to accept requests!\n`);
