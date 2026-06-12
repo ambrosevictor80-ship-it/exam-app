@@ -2,35 +2,44 @@ const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const fs = require("fs");
+const path = require("path");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+console.log("🚀 Starting Exam Pro Backend...");
+
 // ========================================
-// FILE-BASED DATABASE (No MySQL needed!)
+// FILE-BASED DATABASE
 // ========================================
-const USERS_FILE = "users.json";
-const HISTORY_FILE = "history.json";
+const USERS_FILE = path.join(__dirname, "users.json");
+const HISTORY_FILE = path.join(__dirname, "history.json");
 
 // Load existing data
 let users = [];
 let examHistory = [];
 
-if (fs.existsSync(USERS_FILE)) {
-    try {
-        users = JSON.parse(fs.readFileSync(USERS_FILE));
-    } catch(e) { users = []; }
-}
-if (fs.existsSync(HISTORY_FILE)) {
-    try {
-        examHistory = JSON.parse(fs.readFileSync(HISTORY_FILE));
-    } catch(e) { examHistory = []; }
-}
+try {
+    if (fs.existsSync(USERS_FILE)) {
+        users = JSON.parse(fs.readFileSync(USERS_FILE, "utf8"));
+        console.log(`✅ Loaded ${users.length} users`);
+    }
+} catch(e) { console.error("Error loading users:", e); }
+
+try {
+    if (fs.existsSync(HISTORY_FILE)) {
+        examHistory = JSON.parse(fs.readFileSync(HISTORY_FILE, "utf8"));
+        console.log(`✅ Loaded ${examHistory.length} exam records`);
+    }
+} catch(e) { console.error("Error loading history:", e); }
 
 function saveData() {
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-    fs.writeFileSync(HISTORY_FILE, JSON.stringify(examHistory, null, 2));
+    try {
+        fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+        fs.writeFileSync(HISTORY_FILE, JSON.stringify(examHistory, null, 2));
+        console.log("💾 Data saved");
+    } catch(e) { console.error("Error saving data:", e); }
 }
 
 // ========================================
@@ -70,19 +79,26 @@ const questions = {
 };
 
 // ========================================
-// API ENDPOINTS
+// HEALTH CHECK
 // ========================================
-
-app.get("/api/test", (req, res) => {
-    res.json({ message: "Backend is working!" });
-});
-
 app.get("/", (req, res) => {
     res.send("🎉 Exam Pro API is running! Use /api/test to verify.");
 });
 
+app.get("/api/test", (req, res) => {
+    res.json({ 
+        message: "Backend is working!", 
+        users: users.length,
+        exams: examHistory.length,
+        status: "online"
+    });
+});
+
+// ========================================
 // SIGNUP
+// ========================================
 app.post("/api/signup", async (req, res) => {
+    console.log("📝 Signup request received");
     const { fullname, email, password } = req.body;
     
     if (!fullname || !email || !password) {
@@ -93,20 +109,30 @@ app.post("/api/signup", async (req, res) => {
         return res.status(400).json({ error: "Email already registered" });
     }
     
-    const hashedPassword = await bcrypt.hash(password, 10);
-    users.push({
-        id: users.length + 1,
-        fullname,
-        email,
-        password: hashedPassword,
-        created_at: new Date().toISOString()
-    });
-    saveData();
-    res.json({ message: "Account created successfully!" });
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const newUser = {
+            id: users.length + 1,
+            fullname,
+            email,
+            password: hashedPassword,
+            created_at: new Date().toISOString()
+        };
+        users.push(newUser);
+        saveData();
+        console.log("✅ User created:", email);
+        res.json({ message: "Account created successfully!" });
+    } catch (error) {
+        console.error("Signup error:", error);
+        res.status(500).json({ error: "Server error" });
+    }
 });
 
+// ========================================
 // LOGIN
+// ========================================
 app.post("/api/login", async (req, res) => {
+    console.log("🔐 Login request received");
     const { email, password } = req.body;
     
     if (!email || !password) {
@@ -118,20 +144,29 @@ app.post("/api/login", async (req, res) => {
         return res.status(401).json({ error: "Invalid email or password" });
     }
     
-    const valid = await bcrypt.compare(password, user.password);
-    if (!valid) {
-        return res.status(401).json({ error: "Invalid email or password" });
+    try {
+        const valid = await bcrypt.compare(password, user.password);
+        if (!valid) {
+            return res.status(401).json({ error: "Invalid email or password" });
+        }
+        
+        console.log("✅ User logged in:", email);
+        res.json({
+            message: "Login successful!",
+            user: { fullname: user.fullname, email: user.email }
+        });
+    } catch (error) {
+        console.error("Login error:", error);
+        res.status(500).json({ error: "Server error" });
     }
-    
-    res.json({
-        message: "Login successful!",
-        user: { fullname: user.fullname, email: user.email }
-    });
 });
 
+// ========================================
 // GET QUESTIONS
+// ========================================
 app.get("/questions/:subject/:level", (req, res) => {
     const { subject, level } = req.params;
+    console.log(`📚 Questions requested: ${subject}/${level}`);
     
     if (!questions[subject] || !questions[subject][level]) {
         return res.json([]);
@@ -140,8 +175,11 @@ app.get("/questions/:subject/:level", (req, res) => {
     res.json(questions[subject][level]);
 });
 
+// ========================================
 // SUBMIT EXAM
+// ========================================
 app.post("/submit", (req, res) => {
+    console.log("📝 Submit exam request");
     const { answers, subject, level, userEmail } = req.body;
     
     const subjectQuestions = questions[subject]?.[level] || [];
@@ -176,13 +214,17 @@ app.post("/submit", (req, res) => {
     res.json({ score, total, percent, message });
 });
 
+// ========================================
 // GET HISTORY
+// ========================================
 app.get("/api/history/:email", (req, res) => {
     const history = examHistory.filter(h => h.user_email === req.params.email);
     res.json(history);
 });
 
+// ========================================
 // ADMIN ENDPOINTS
+// ========================================
 app.get("/api/admin/users", (req, res) => {
     const safeUsers = users.map(u => ({
         id: u.id,
@@ -202,7 +244,9 @@ app.get("/api/admin/history", (req, res) => {
 // ========================================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-    console.log(`✅ Server running on port ${PORT}`);
-    console.log(`📁 Data saved to JSON files`);
+    console.log(`\n✅ Server running on port ${PORT}`);
+    console.log(`📁 Data directory: ${__dirname}`);
     console.log(`👥 ${users.length} users registered`);
+    console.log(`📝 ${examHistory.length} exam records`);
+    console.log(`\n🌐 Ready to accept requests!\n`);
 });
