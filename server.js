@@ -19,8 +19,8 @@ const transporter = nodemailer.createTransport({
     host: "smtp-relay.brevo.com",
     port: 587,
     auth: {
-        user: "YOUR_BREVO_LOGIN_HERE",     // ← Replace with your Brevo login
-        pass: "YOUR_BREVO_PASSWORD_HERE"   // ← Replace with your Brevo password
+        user: "aecd5c001@smtp-brevo.com",     // ← Replace with your Brevo login
+        pass: "3Q94ajsqTSf8DN5A"   // ← Replace with your Brevo password
     }
 });
 
@@ -28,7 +28,7 @@ async function sendVerificationEmail(email, fullname, token) {
     const verificationUrl = `https://1yeet.netlify.app/verify.html?token=${token}&email=${email}`;
     
     const mailOptions = {
-        from: '"Exam Pro System" <noreply@exampro.com>',
+        from: '"Exam Pro System" <aecd5c001@smtp-brevo.com>',
         to: email,
         subject: "Verify Your Email - Exam Pro",
         html: `
