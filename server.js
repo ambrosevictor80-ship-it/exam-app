@@ -2,12 +2,61 @@ const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
+const nodemailer = require("nodemailer");
+const crypto = require("crypto");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-console.log("🚀 Starting Exam Pro Backend...");
+console.log("🚀 Starting Exam Pro Backend with Email Verification...");
+
+// ========================================
+// EMAIL CONFIGURATION (Brevo SMTP)
+// ========================================
+const emailTransporter = nodemailer.createTransport({
+    host: "smtp-relay.brevo.com",
+    port: 587,
+    auth: {
+        user: "aecd5c001@smtp-brevo.com",
+        pass: "3Q94ajsqTSf8DN5A"
+    }
+});
+
+async function sendVerificationEmail(email, fullname, token) {
+    // IMPORTANT: Change this URL to your actual Netlify URL
+    const verificationUrl = `https://your-netlify-site.netlify.app/verify.html?token=${token}&email=${email}`;
+    
+    const mailOptions = {
+        from: '"Exam Pro System" <aecd5c001@smtp-brevo.com>',
+        to: email,
+        subject: "Verify Your Email - Exam Pro",
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h1 style="color: #667eea;">📚 Exam Pro</h1>
+                <h2>Hello ${fullname}!</h2>
+                <p>Thank you for signing up for Exam Pro System.</p>
+                <p>Please click the button below to verify your email address and start taking exams:</p>
+                <a href="${verificationUrl}" style="background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 25px; display: inline-block; margin: 20px 0;">
+                    Verify Email Address
+                </a>
+                <p>Or copy this link: ${verificationUrl}</p>
+                <p>This link expires in 24 hours.</p>
+                <hr>
+                <p style="font-size: 12px; color: #999;">Exam Pro System - Your path to success</p>
+            </div>
+        `
+    };
+    
+    try {
+        await emailTransporter.sendMail(mailOptions);
+        console.log(`✅ Verification email sent to ${email}`);
+        return true;
+    } catch (error) {
+        console.error("❌ Email error:", error);
+        return false;
+    }
+}
 
 // ========================================
 // FILE-BASED DATABASE
@@ -384,8 +433,8 @@ app.get("/api/test", (req, res) => {
     res.json({ message: "Backend is working!", users: users.length, exams: examHistory.length, status: "online" });
 });
 
-// SIGNUP
-app.post("/api/signup", (req, res) => {
+// SIGNUP WITH EMAIL VERIFICATION
+app.post("/api/signup", async (req, res) => {
     console.log("📝 Signup request received");
     const { fullname, email, password } = req.body;
     
@@ -398,24 +447,62 @@ app.post("/api/signup", (req, res) => {
     }
     
     try {
+        // Generate verification token
+        const verificationToken = crypto.randomBytes(32).toString("hex");
+        
         const newUser = {
             id: users.length + 1,
             fullname,
             email,
             password: password,
+            verified: false,
+            verificationToken: verificationToken,
             created_at: new Date().toISOString()
         };
         users.push(newUser);
         saveData();
-        console.log("✅ User created:", email);
-        res.json({ message: "Account created successfully!" });
+        
+        // Send verification email
+        await sendVerificationEmail(email, fullname, verificationToken);
+        
+        console.log("✅ User created - verification email sent:", email);
+        res.json({ 
+            message: "Account created! Please check your email to verify your account.",
+            requiresVerification: true
+        });
     } catch (error) {
         console.error("Signup error:", error);
         res.status(500).json({ error: "Server error" });
     }
 });
 
-// LOGIN
+// VERIFY EMAIL
+app.get("/api/verify", (req, res) => {
+    const { token, email } = req.query;
+    console.log(`🔐 Verification request for ${email}`);
+    
+    const user = users.find(u => u.email === email);
+    if (!user) {
+        return res.status(400).json({ error: "Invalid verification link" });
+    }
+    
+    if (user.verified) {
+        return res.json({ message: "Email already verified! You can now login." });
+    }
+    
+    if (user.verificationToken !== token) {
+        return res.status(400).json({ error: "Invalid or expired verification token" });
+    }
+    
+    user.verified = true;
+    user.verificationToken = null;
+    saveData();
+    
+    console.log(`✅ Email verified for ${email}`);
+    res.json({ message: "Email verified successfully! You can now login." });
+});
+
+// LOGIN (Check if verified)
 app.post("/api/login", (req, res) => {
     console.log("🔐 Login request received");
     const { email, password } = req.body;
@@ -429,6 +516,11 @@ app.post("/api/login", (req, res) => {
         return res.status(401).json({ error: "Invalid email or password" });
     }
     
+    // CHECK IF EMAIL IS VERIFIED
+    if (!user.verified) {
+        return res.status(401).json({ error: "Please verify your email before logging in. Check your inbox." });
+    }
+    
     if (user.password !== password) {
         return res.status(401).json({ error: "Invalid email or password" });
     }
@@ -438,6 +530,28 @@ app.post("/api/login", (req, res) => {
         message: "Login successful!",
         user: { fullname: user.fullname, email: user.email }
     });
+});
+
+// RESEND VERIFICATION EMAIL
+app.post("/api/resend-verification", async (req, res) => {
+    const { email } = req.body;
+    const user = users.find(u => u.email === email);
+    
+    if (!user) {
+        return res.status(404).json({ error: "User not found" });
+    }
+    
+    if (user.verified) {
+        return res.status(400).json({ error: "Email already verified" });
+    }
+    
+    // Generate new token
+    const newToken = crypto.randomBytes(32).toString("hex");
+    user.verificationToken = newToken;
+    saveData();
+    
+    await sendVerificationEmail(email, user.fullname, newToken);
+    res.json({ message: "Verification email resent! Check your inbox." });
 });
 
 // GET QUESTIONS
@@ -501,6 +615,7 @@ app.get("/api/admin/users", (req, res) => {
         id: u.id,
         fullname: u.fullname,
         email: u.email,
+        verified: u.verified || false,
         created_at: u.created_at
     }));
     res.json(safeUsers);
@@ -515,5 +630,6 @@ app.listen(PORT, () => {
     console.log(`\n✅ Server running on port ${PORT}`);
     console.log(`👥 ${users.length} users registered`);
     console.log(`📝 ${examHistory.length} exam records`);
+    console.log(`📧 Email verification enabled!`);
     console.log(`\n🌐 Ready to accept requests!\n`);
 });
