@@ -20,8 +20,8 @@ const transporter = nodemailer.createTransport({
     port: 587,
     secure: true,
     auth: {
-        user: "aecd5c001@smtp-brevo.com",     // ← Replace with your Brevo login
-        pass: "3Q94ajsqTSf8DN5A"   // ← Replace with your Brevo password
+        user: "ambrosevictor80@gmail.com",     // ← Replace with your Brevo login
+        pass: "bclh fsnw lvfj hakb"   // ← Replace with your Brevo password
     }
 });
 
