@@ -1,6 +1,5 @@
 const express = require("express");
 const cors = require("cors");
-const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
 
@@ -11,7 +10,7 @@ app.use(express.json());
 console.log("🚀 Starting Exam Pro Backend...");
 
 // ========================================
-// FILE-BASED DATABASE
+// FILE-BASED DATABASE (No bcrypt needed)
 // ========================================
 const USERS_FILE = path.join(__dirname, "users.json");
 const HISTORY_FILE = path.join(__dirname, "history.json");
@@ -272,7 +271,8 @@ app.get("/api/test", (req, res) => {
     res.json({ message: "Backend is working!", users: users.length, exams: examHistory.length, status: "online" });
 });
 
-app.post("/api/signup", async (req, res) => {
+// SIGNUP (No bcrypt - plain text password)
+app.post("/api/signup", (req, res) => {
     console.log("📝 Signup request received");
     const { fullname, email, password } = req.body;
     
@@ -285,12 +285,11 @@ app.post("/api/signup", async (req, res) => {
     }
     
     try {
-        const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = {
             id: users.length + 1,
             fullname,
             email,
-            password: hashedPassword,
+            password: password, // Plain text for simplicity
             created_at: new Date().toISOString()
         };
         users.push(newUser);
@@ -303,7 +302,8 @@ app.post("/api/signup", async (req, res) => {
     }
 });
 
-app.post("/api/login", async (req, res) => {
+// LOGIN (No bcrypt - plain text comparison)
+app.post("/api/login", (req, res) => {
     console.log("🔐 Login request received");
     const { email, password } = req.body;
     
@@ -316,21 +316,15 @@ app.post("/api/login", async (req, res) => {
         return res.status(401).json({ error: "Invalid email or password" });
     }
     
-    try {
-        const valid = await bcrypt.compare(password, user.password);
-        if (!valid) {
-            return res.status(401).json({ error: "Invalid email or password" });
-        }
-        
-        console.log("✅ User logged in:", email);
-        res.json({
-            message: "Login successful!",
-            user: { fullname: user.fullname, email: user.email }
-        });
-    } catch (error) {
-        console.error("Login error:", error);
-        res.status(500).json({ error: "Server error" });
+    if (user.password !== password) {
+        return res.status(401).json({ error: "Invalid email or password" });
     }
+    
+    console.log("✅ User logged in:", email);
+    res.json({
+        message: "Login successful!",
+        user: { fullname: user.fullname, email: user.email }
+    });
 });
 
 app.get("/questions/:subject/:level", (req, res) => {
