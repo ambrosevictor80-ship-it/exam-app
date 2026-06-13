@@ -9,19 +9,18 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-console.log("🚀 Starting Exam Pro Backend with Brevo Email...");
+console.log("🚀 Starting Exam Pro Backend with Gmail SMTP...");
 
 // ========================================
-// EMAIL CONFIGURATION (Brevo - Works for ANY email)
+// EMAIL CONFIGURATION (GMAIL SMTP)
 // ========================================
-// 🔴 REPLACE with your actual Brevo credentials
 const transporter = nodemailer.createTransport({
-    host: "smtp-relay.brevo.com",
-    port: 587,
-    secure: true,
+    service: "gmail",
+    port: 465,
+    secure: true,  // ← SSL
     auth: {
-        user: "ambrosevictor80@gmail.com",     // ← Replace with your Brevo login
-        pass: "bclh fsnw lvfj hakb"   // ← Replace with your Brevo password
+        user: "ambrosevictor80@gmail.com",
+        pass: "bclh fsnw lvfj hakb"  // ← Your Gmail app password
     }
 });
 
@@ -29,7 +28,7 @@ async function sendVerificationEmail(email, fullname, token) {
     const verificationUrl = `https://1yeet.netlify.app/verify.html?token=${token}&email=${email}`;
     
     const mailOptions = {
-        from: '"Exam Pro System" <aecd5c001@smtp-brevo.com>',
+        from: '"Exam Pro System" <ambrosevictor80@gmail.com>',
         to: email,
         subject: "Verify Your Email - Exam Pro",
         html: `
@@ -835,7 +834,7 @@ app.listen(PORT, () => {
     console.log(`\n✅ Server running on port ${PORT}`);
     console.log(`👥 ${users.length} users registered`);
     console.log(`📝 ${examHistory.length} exam records`);
-    console.log(`📧 Brevo email verification enabled!`);
+    console.log(`📧 Gmail email verification enabled!`);
     console.log(`📚 ${mathematicsQuestions.easy.length + mathematicsQuestions.medium.length + mathematicsQuestions.hard.length + englishQuestions.easy.length + englishQuestions.medium.length + englishQuestions.hard.length + physicsQuestions.easy.length + physicsQuestions.medium.length + physicsQuestions.hard.length + biologyQuestions.easy.length + biologyQuestions.medium.length + biologyQuestions.hard.length + chemistryQuestions.easy.length + chemistryQuestions.medium.length + chemistryQuestions.hard.length + computerScienceQuestions.easy.length + computerScienceQuestions.medium.length + computerScienceQuestions.hard.length} total questions loaded!`);
     console.log(`\n🌐 Ready to accept requests!\n`);
 });
