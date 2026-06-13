@@ -18,6 +18,7 @@ console.log("🚀 Starting Exam Pro Backend with Brevo Email...");
 const transporter = nodemailer.createTransport({
     host: "smtp-relay.brevo.com",
     port: 587,
+    secure: true,
     auth: {
         user: "aecd5c001@smtp-brevo.com",     // ← Replace with your Brevo login
         pass: "3Q94ajsqTSf8DN5A"   // ← Replace with your Brevo password
