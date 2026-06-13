@@ -2,54 +2,53 @@ const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
-const nodemailer = require("nodemailer");
 const crypto = require("crypto");
+const { Resend } = require('resend');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-console.log("🚀 Starting Exam Pro Backend with Email Verification...");
+console.log("🚀 Starting Exam Pro Backend with Resend Email...");
 
 // ========================================
-// EMAIL CONFIGURATION (Brevo SMTP)
+// EMAIL CONFIGURATION (Resend - Fast)
 // ========================================
-const emailTransporter = nodemailer.createTransport({
-    host: "smtp-relay.brevo.com",
-    port: 587,
-    auth: {
-        user: "aecd5c001@smtp-brevo.com",
-        pass: "3Q94ajsqTSf8DN5A"
-    }
-});
+// 🔴 IMPORTANT: Replace with your actual Resend API key
+// Get it from: https://resend.com/api-keys
+const resend = new Resend('re_3LbunkpF_Hguaayej1csD7nMox1wxz7J2');
 
 async function sendVerificationEmail(email, fullname, token) {
-    // IMPORTANT: Change this URL to your actual Netlify URL
-    const verificationUrl = `https://your-netlify-site.netlify.app/verify.html?token=${token}&email=${email}`;
-    
-    const mailOptions = {
-        from: '"Exam Pro System" <aecd5c001@smtp-brevo.com>',
-        to: email,
-        subject: "Verify Your Email - Exam Pro",
-        html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h1 style="color: #667eea;">📚 Exam Pro</h1>
-                <h2>Hello ${fullname}!</h2>
-                <p>Thank you for signing up for Exam Pro System.</p>
-                <p>Please click the button below to verify your email address and start taking exams:</p>
-                <a href="${verificationUrl}" style="background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 25px; display: inline-block; margin: 20px 0;">
-                    Verify Email Address
-                </a>
-                <p>Or copy this link: ${verificationUrl}</p>
-                <p>This link expires in 24 hours.</p>
-                <hr>
-                <p style="font-size: 12px; color: #999;">Exam Pro System - Your path to success</p>
-            </div>
-        `
-    };
+    // IMPORTANT: Change this to your actual Netlify URL
+    const verificationUrl = `https://1yeet.netlify.app/verify.html?token=${token}&email=${email}`;
     
     try {
-        await emailTransporter.sendMail(mailOptions);
+        const { data, error } = await resend.emails.send({
+            from: 'Exam Pro <onboarding@resend.dev>',
+            to: [email],
+            subject: 'Verify Your Email - Exam Pro',
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h1 style="color: #667eea;">📚 Exam Pro</h1>
+                    <h2>Hello ${fullname}!</h2>
+                    <p>Thank you for signing up for Exam Pro System.</p>
+                    <p>Please click the button below to verify your email address and start taking exams:</p>
+                    <a href="${verificationUrl}" style="background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 25px; display: inline-block; margin: 20px 0;">
+                        Verify Email Address
+                    </a>
+                    <p>Or copy this link: ${verificationUrl}</p>
+                    <p>This link expires in 24 hours.</p>
+                    <hr>
+                    <p style="font-size: 12px; color: #999;">Exam Pro System - Your path to success</p>
+                </div>
+            `
+        });
+        
+        if (error) {
+            console.error("❌ Resend error:", error);
+            return false;
+        }
+        
         console.log(`✅ Verification email sent to ${email}`);
         return true;
     } catch (error) {
@@ -447,7 +446,6 @@ app.post("/api/signup", async (req, res) => {
     }
     
     try {
-        // Generate verification token
         const verificationToken = crypto.randomBytes(32).toString("hex");
         
         const newUser = {
@@ -462,7 +460,6 @@ app.post("/api/signup", async (req, res) => {
         users.push(newUser);
         saveData();
         
-        // Send verification email
         await sendVerificationEmail(email, fullname, verificationToken);
         
         console.log("✅ User created - verification email sent:", email);
@@ -502,7 +499,7 @@ app.get("/api/verify", (req, res) => {
     res.json({ message: "Email verified successfully! You can now login." });
 });
 
-// LOGIN (Check if verified)
+// LOGIN
 app.post("/api/login", (req, res) => {
     console.log("🔐 Login request received");
     const { email, password } = req.body;
@@ -516,7 +513,6 @@ app.post("/api/login", (req, res) => {
         return res.status(401).json({ error: "Invalid email or password" });
     }
     
-    // CHECK IF EMAIL IS VERIFIED
     if (!user.verified) {
         return res.status(401).json({ error: "Please verify your email before logging in. Check your inbox." });
     }
@@ -532,7 +528,7 @@ app.post("/api/login", (req, res) => {
     });
 });
 
-// RESEND VERIFICATION EMAIL
+// RESEND VERIFICATION
 app.post("/api/resend-verification", async (req, res) => {
     const { email } = req.body;
     const user = users.find(u => u.email === email);
@@ -545,7 +541,6 @@ app.post("/api/resend-verification", async (req, res) => {
         return res.status(400).json({ error: "Email already verified" });
     }
     
-    // Generate new token
     const newToken = crypto.randomBytes(32).toString("hex");
     user.verificationToken = newToken;
     saveData();
@@ -630,6 +625,6 @@ app.listen(PORT, () => {
     console.log(`\n✅ Server running on port ${PORT}`);
     console.log(`👥 ${users.length} users registered`);
     console.log(`📝 ${examHistory.length} exam records`);
-    console.log(`📧 Email verification enabled!`);
+    console.log(`📧 Resend email verification enabled!`);
     console.log(`\n🌐 Ready to accept requests!\n`);
 });
